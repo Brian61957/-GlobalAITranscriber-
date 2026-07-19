@@ -126,6 +126,31 @@ def _render_log():
                 unsafe_allow_html=True)
 
 
+LIVE_VIEW_STAGES = {"processing_initial", "processing_next", "awaiting_review", "submitting"}
+
+
+@st.fragment(run_every=2)
+def _render_live_view():
+    proc = st.session_state.get("browser_proc")
+    if proc is None or not proc.is_alive():
+        return
+
+    img_bytes = proc.get_screenshot()
+    if img_bytes:
+        st.session_state["_last_screenshot"] = img_bytes
+
+    shot = st.session_state.get("_last_screenshot")
+    st.markdown('<div class="gat-section-label">🖥️ Live Browser View</div>',
+                unsafe_allow_html=True)
+    if shot:
+        st.image(shot, use_container_width=True)
+        st.caption("Auto-refreshes every ~2s. This is a screenshot, not a "
+                   "live video — there may be a short delay, and you can't "
+                   "click into it directly.")
+    else:
+        st.caption("Waiting for the browser to open...")
+
+
 def _render_review_panel():
     engine_task_number = st.session_state.get("task_number", 1)
     summary = st.session_state.get("profile_summary", {})
@@ -246,6 +271,9 @@ def render_workflow():
     st.markdown('<hr>', unsafe_allow_html=True)
     _render_status_checklist()
     st.markdown('<hr>', unsafe_allow_html=True)
+    if stage in LIVE_VIEW_STAGES:
+        _render_live_view()
+        st.markdown('<hr>', unsafe_allow_html=True)
     _render_log()
     st.markdown('<hr>', unsafe_allow_html=True)
     _render_control_bar()

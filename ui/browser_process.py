@@ -19,6 +19,54 @@ import sys
 
 
 # --------------------------------------------------
+# Live-view screenshot sharing
+# --------------------------------------------------
+
+class _ScreenshotBox:
+    """
+    Thread-safe holder for the latest screenshot JPEG bytes. Deliberately
+    NOT sent through task_queue/result_queue -- those are for sequential
+    request/response pairs, and a screenshot request queued behind a
+    long-running operation (e.g. a 10-minute open_and_understand call)
+    could time out and then have its stale result misattributed to a
+    later, unrelated call. This side-channel avoids that entirely: a
+    background loop inside the worker's event loop updates it directly,
+    and the Streamlit side just reads whatever's there, no round trip.
+    """
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._data = None
+
+    def set(self, data):
+        with self._lock:
+            self._data = data
+
+    def get(self):
+        with self._lock:
+            return self._data
+
+
+async def _screenshot_loop(browser_holder, screenshot_box):
+    """Best-effort periodic screenshot of whatever page is currently
+    active. Runs as a background asyncio task alongside the main
+    message-processing loop, so it only actually gets scheduled time
+    during the many `await` points inside message handlers -- it goes
+    quiet while the worker is idle waiting for the next message, which
+    is fine since nothing is happening on the page then anyway."""
+    while True:
+        try:
+            browser = browser_holder.get("browser")
+            if browser is not None:
+                page = browser.get_page()
+                if page is not None and not page.is_closed():
+                    img = await page.screenshot(type="jpeg", quality=45)
+                    screenshot_box.set(img)
+        except Exception:
+            pass
+        await asyncio.sleep(2)
+
+
+# --------------------------------------------------
 # Messages
 # --------------------------------------------------
 
@@ -325,7 +373,7 @@ class AsyncBrowserManager:
 # Async pipeline -- runs everything inside one event loop
 # --------------------------------------------------
 
-async def _async_pipeline(task_queue, result_queue):
+async def _async_pipeline(task_queue, result_queue, screenshot_box):
     """
     All Playwright work happens here, inside a single asyncio event
     loop created by asyncio.run() in the worker thread. No sync API,
@@ -340,6 +388,9 @@ async def _async_pipeline(task_queue, result_queue):
     task_number = 1
     model_choice = "Faster-Whisper (base)"
     language_choice = "Auto Detect"
+
+    browser_holder = {"browser": None}
+    asyncio.ensure_future(_screenshot_loop(browser_holder, screenshot_box))
 
     def emit(step, status, detail=""):
         logger.info(f"[{status.upper()}] {step or 'log'} {detail}")
@@ -374,6 +425,7 @@ async def _async_pipeline(task_queue, result_queue):
 
                 emit("Browser Running", "running", "Starting browser...")
                 browser = AsyncBrowserManager(domain=domain)
+                browser_holder["browser"] = browser
                 await browser.start()
                 emit("Browser Running", "done", "Browser started")
 
@@ -838,7 +890,7 @@ async def _async_pipeline(task_queue, result_queue):
 # Thread entry point
 # --------------------------------------------------
 
-def _worker_main(task_queue, result_queue):
+def _worker_main(task_queue, result_queue, screenshot_box):
     """
     Creates a fresh ProactorEventLoop on this thread and runs the
     entire async pipeline inside it. No sync Playwright, no event-loop
@@ -852,7 +904,7 @@ def _worker_main(task_queue, result_queue):
     asyncio.set_event_loop(loop)
 
     try:
-        loop.run_until_complete(_async_pipeline(task_queue, result_queue))
+        loop.run_until_complete(_async_pipeline(task_queue, result_queue, screenshot_box))
     finally:
         loop.close()
 
@@ -866,9 +918,10 @@ class BrowserProcess:
     def __init__(self):
         self.task_queue = queue.Queue()
         self.result_queue = queue.Queue()
+        self._screenshot_box = _ScreenshotBox()
         self._thread = threading.Thread(
             target=_worker_main,
-            args=(self.task_queue, self.result_queue),
+            args=(self.task_queue, self.result_queue, self._screenshot_box),
             daemon=True,
             name="PlaywrightWorker",
         )
@@ -876,6 +929,12 @@ class BrowserProcess:
 
     def is_alive(self):
         return self._thread.is_alive()
+
+    def get_screenshot(self):
+        """Best-effort, non-blocking read of the latest live-view
+        screenshot. Returns JPEG bytes, or None if nothing's been
+        captured yet."""
+        return self._screenshot_box.get()
 
     def _send_and_wait(self, msg, timeout=300):
         self.task_queue.put(msg)

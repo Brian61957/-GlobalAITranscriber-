@@ -52,6 +52,13 @@
    what's submitted; you just do the editing in the app's text box instead of the
    invisible browser window.
 
+10. **Live browser view added** — a screenshot of whatever the headless browser is
+    currently looking at, shown right in the app and auto-refreshing every ~2 seconds
+    while it's actively working. This is a still image, not real video, and you can't
+    click into it — but it lets you confirm it's on the right page and doing the right
+    thing, instead of flying fully blind. It appears automatically above the log while
+    a task is loading, transcribing, or awaiting your review.
+
 ## Setting up automated login
 
 Copy `.env.example` to `.env` locally and fill in your real values, or on Streamlit
