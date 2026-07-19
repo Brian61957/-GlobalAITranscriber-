@@ -1,0 +1,36 @@
+# Secrets — never commit these
+.env
+*.env
+**/credentials.json
+**/token.json
+
+# Saved login/session data
+browser/sessions/*.json
+sessions/*.json
+
+# Generated audio & temp files
+*.wav
+temp_audio/
+sample_audio/
+recorded_audio.wav
+enhanced_audio.wav
+temp_audio.wav
+
+# Logs
+logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+New folder/
+New Text Document.txt
+
+# Streamlit
+.streamlit/secrets.toml

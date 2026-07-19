@@ -1,0 +1,43 @@
+{
+    "ignore_fillers": [
+        "ignore filler words",
+        "ignore word fillers",
+        "remove fillers",
+        "skip fillers",
+        "exclude fillers",
+        "do not transcribe um",
+        "do not transcribe erm",
+        "remove hesitations",
+        "exclude dysfluencies"
+    ],
+
+    "british_spelling": [
+        "british spelling",
+        "british english",
+        "uk spelling",
+        "use british spellings",
+        "follow british english"
+    ],
+
+    "timestamps": [
+        "timestamps",
+        "timestamp",
+        "speaker timestamp",
+        "paste timestamp",
+        "insert timestamp"
+    ],
+
+    "multiple_speakers": [
+        "multiple speakers",
+        "speaker 1",
+        "speaker 2",
+        "speaker changes",
+        "split speakers"
+    ],
+
+    "translate": [
+        "translate",
+        "translation",
+        "english translation"
+    ]
+}
