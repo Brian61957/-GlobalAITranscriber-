@@ -876,6 +876,7 @@ async def _async_pipeline(task_queue, result_queue, screenshot_box):
                 result_queue.put(ResultMsg(has_next))
 
         except Exception as e:
+            logger.error(f"Unhandled error processing {type(msg).__name__}: {e}\n{traceback.format_exc()}")
             result_queue.put(ErrorMsg(f"{e}\n{traceback.format_exc()}"))
 
     # Clean shutdown
